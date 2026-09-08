@@ -1,8 +1,8 @@
 import { useEffect, useMemo, useState } from 'react'
 import TerakumaScene from './components/TerakumaScene.jsx'
 
-const STORAGE_KEY = 'terakuma-life-v0.2'
-const LEGACY_STORAGE_KEY = 'terakuma-life-v0.1'
+const STORAGE_KEY = 'terakuma-life-v0.3'
+const LEGACY_STORAGE_KEYS = ['terakuma-life-v0.2', 'terakuma-life-v0.1']
 
 const CONFIG = {
   hungerFullMinutes: 90,
@@ -19,12 +19,12 @@ const SHOP_CATEGORIES = [
 ]
 
 const SHOP_ITEMS = [
-  { id: 'chair-basic', category: 'furniture', name: 'シンプルチェア', icon: '🪑', price: 4, description: 'まずは一脚。座るモーションは今後追加予定。' },
-  { id: 'table-basic', category: 'furniture', name: 'ローテーブル', icon: '▰', price: 6, description: '部屋の中心に置きやすい小さなテーブル。' },
-  { id: 'sofa-basic', category: 'furniture', name: 'ソファ', icon: '🛋️', price: 10, description: 'くつろぎ家具。今後てらくまが座ります。' },
-  { id: 'tv-basic', category: 'furniture', name: 'テレビ', icon: '📺', price: 12, description: 'てらくまの暇つぶし候補。' },
-  { id: 'wardrobe-basic', category: 'furniture', name: 'タンス', icon: '🗄️', price: 8, description: '衣装をしまう家具。' },
-  { id: 'dumbbell-basic', category: 'furniture', name: 'ダンベル', icon: '🏋️', price: 5, description: '筋トレ好きのてらくま向け。' },
+  { id: 'chair-basic', category: 'furniture', name: 'シンプルチェア', icon: '🪑', price: 4, description: '木製のシンプルな椅子。' },
+  { id: 'table-basic', category: 'furniture', name: 'ローテーブル', icon: '▰', price: 6, description: '部屋の中心にも置きやすいローテーブル。' },
+  { id: 'sofa-basic', category: 'furniture', name: 'ソファ', icon: '🛋️', price: 10, description: 'てらくまがくつろげそうな2人掛けソファ。' },
+  { id: 'tv-basic', category: 'furniture', name: 'テレビ', icon: '📺', price: 12, description: '薄型テレビ。今後は視聴アクションにも対応予定。' },
+  { id: 'wardrobe-basic', category: 'furniture', name: 'タンス', icon: '🗄️', price: 8, description: '衣装をしまう木製タンス。' },
+  { id: 'dumbbell-basic', category: 'furniture', name: 'ダンベル', icon: '🏋️', price: 5, description: '筋トレ用。今後てらくまが使います。' },
   { id: 'treadmill-basic', category: 'furniture', name: 'ランニングマシン', icon: '🏃', price: 15, description: '本格的なトレーニング器具。' },
 
   { id: 'cap-basic', category: 'clothes', name: 'キャップ', icon: '🧢', price: 5, description: '帽子カテゴリの最初のアイテム。' },
@@ -33,10 +33,11 @@ const SHOP_ITEMS = [
   { id: 'shoes-basic', category: 'clothes', name: 'スニーカー', icon: '👟', price: 7, description: '足元の着せ替え用。' },
   { id: 'accessory-basic', category: 'clothes', name: 'ネックレス', icon: '📿', price: 8, description: 'サングラス以外のアクセサリー第一号。' },
 
-  { id: 'wallpaper-warm', category: 'other', name: 'あたたかい壁紙', icon: '🟨', price: 7, description: '壁の色・質感変更用アイテム。' },
-  { id: 'floor-wood', category: 'other', name: 'ウッド床', icon: '🟫', price: 7, description: '床材変更用アイテム。' },
+  { id: 'wallpaper-warm', category: 'other', name: 'あたたかい壁紙', icon: '🟨', price: 7, description: '壁をやわらかなベージュ系に変更します。' },
+  { id: 'floor-wood', category: 'other', name: 'ウッド床', icon: '🟫', price: 7, description: '床を木目調の色合いに変更します。' },
 ]
 
+const FURNITURE_ITEMS = SHOP_ITEMS.filter((item) => item.category === 'furniture')
 const HUNGER_DECAY_PER_SECOND = 100 / (CONFIG.hungerFullMinutes * 60)
 const PLAY_DECAY_PER_SECOND = 100 / (CONFIG.playFullMinutes * 60)
 
@@ -44,23 +45,38 @@ function createFreshGame() {
   return {
     hunger: 100,
     play: 100,
-    onigiri: 0,
+    onigiri: 30,
     rewardProgress: 0,
     hungerZeroSince: null,
     playZeroSince: null,
     status: 'active',
     ownedItems: [],
+    placedFurniture: [],
+    roomStyle: { wallpaper: 'default', floor: 'default' },
+    v03GiftReceived: true,
     lastUpdated: Date.now(),
   }
 }
 
 function normalizeGame(saved) {
   const fresh = createFreshGame()
-  return {
+  const normalized = {
     ...fresh,
     ...saved,
     ownedItems: Array.isArray(saved?.ownedItems) ? saved.ownedItems : [],
+    placedFurniture: Array.isArray(saved?.placedFurniture) ? saved.placedFurniture : [],
+    roomStyle: {
+      wallpaper: saved?.roomStyle?.wallpaper ?? 'default',
+      floor: saved?.roomStyle?.floor ?? 'default',
+    },
   }
+
+  if (!saved?.v03GiftReceived) {
+    normalized.onigiri = Math.max(0, Number(saved?.onigiri) || 0) + 30
+    normalized.v03GiftReceived = true
+  }
+
+  return normalized
 }
 
 function advanceGame(previous, now = Date.now()) {
@@ -110,7 +126,13 @@ function advanceGame(previous, now = Date.now()) {
 
 function loadGame() {
   try {
-    const raw = localStorage.getItem(STORAGE_KEY) ?? localStorage.getItem(LEGACY_STORAGE_KEY)
+    let raw = localStorage.getItem(STORAGE_KEY)
+    if (!raw) {
+      for (const key of LEGACY_STORAGE_KEYS) {
+        raw = localStorage.getItem(key)
+        if (raw) break
+      }
+    }
     if (!raw) return createFreshGame()
     return advanceGame(normalizeGame(JSON.parse(raw)))
   } catch {
@@ -193,10 +215,167 @@ function ShopModal({ game, category, setCategory, onClose, onBuy }) {
         </div>
 
         <footer className="shop-footer">
-          購入したアイテムは保存されます。家具配置・着せ替え・壁床変更は次のバージョンで使用可能になります。
+          購入した家具・壁紙・床材は「ルーム」から使用できます。衣装の着せ替えは次の段階で対応します。
         </footer>
       </section>
     </div>
+  )
+}
+
+function RoomEditor({
+  game,
+  selectedFurnitureId,
+  setSelectedFurnitureId,
+  onPlace,
+  onUpdate,
+  onRemove,
+  onRoomStyle,
+  onFinish,
+}) {
+  const [tab, setTab] = useState('furniture')
+  const ownedFurniture = FURNITURE_ITEMS.filter((item) => game.ownedItems.includes(item.id))
+  const placedIds = new Set(game.placedFurniture.map((item) => item.itemId))
+  const selectedPlacement = game.placedFurniture.find((item) => item.itemId === selectedFurnitureId)
+  const selectedItem = FURNITURE_ITEMS.find((item) => item.id === selectedFurnitureId)
+
+  const wallpaperOwned = game.ownedItems.includes('wallpaper-warm')
+  const floorOwned = game.ownedItems.includes('floor-wood')
+
+  return (
+    <aside className="room-editor">
+      <header className="room-editor__header">
+        <div>
+          <span className="room-editor__kicker">TERAKUMA LIFE</span>
+          <h1>ROOM LAYOUT</h1>
+        </div>
+        <button className="room-editor__done" onClick={onFinish}>完成</button>
+      </header>
+
+      <div className="room-editor__tabs">
+        <button className={tab === 'furniture' ? 'room-tab room-tab--active' : 'room-tab'} onClick={() => setTab('furniture')}>🛋️ 家具</button>
+        <button className={tab === 'surface' ? 'room-tab room-tab--active' : 'room-tab'} onClick={() => setTab('surface')}>🎨 壁・床</button>
+      </div>
+
+      {tab === 'furniture' && (
+        <div className="room-editor__body">
+          <p className="room-editor__help">購入した家具を配置できます。配置後は家具をタップして位置と向きを調整してください。</p>
+
+          <div className="room-inventory">
+            {ownedFurniture.length === 0 && (
+              <div className="room-empty">まだ家具を持っていません。SHOPで家具を購入するとここに並びます。</div>
+            )}
+            {ownedFurniture.map((item) => {
+              const placed = placedIds.has(item.id)
+              const selected = selectedFurnitureId === item.id
+              return (
+                <button
+                  key={item.id}
+                  className={`room-inventory__item ${selected ? 'room-inventory__item--selected' : ''}`}
+                  onClick={() => placed ? setSelectedFurnitureId(item.id) : onPlace(item.id)}
+                >
+                  <span>{item.icon}</span>
+                  <b>{item.name}</b>
+                  <small>{placed ? '配置済み' : '配置する'}</small>
+                </button>
+              )
+            })}
+          </div>
+
+          {selectedPlacement && selectedItem && (
+            <section className="room-controls">
+              <div className="room-controls__title">
+                <span>{selectedItem.icon}</span>
+                <div><b>{selectedItem.name}</b><small>選択中</small></div>
+              </div>
+
+              <label>
+                <span>左右</span>
+                <input
+                  type="range"
+                  min="-3.8"
+                  max="3.8"
+                  step="0.1"
+                  value={selectedPlacement.x}
+                  onChange={(event) => onUpdate(selectedPlacement.itemId, { x: Number(event.target.value) })}
+                />
+                <strong>{selectedPlacement.x.toFixed(1)}</strong>
+              </label>
+
+              <label>
+                <span>奥行</span>
+                <input
+                  type="range"
+                  min="-2.8"
+                  max="2.8"
+                  step="0.1"
+                  value={selectedPlacement.z}
+                  onChange={(event) => onUpdate(selectedPlacement.itemId, { z: Number(event.target.value) })}
+                />
+                <strong>{selectedPlacement.z.toFixed(1)}</strong>
+              </label>
+
+              <div className="room-rotate">
+                <span>向き</span>
+                <button onClick={() => onUpdate(selectedPlacement.itemId, { rotation: selectedPlacement.rotation - Math.PI / 4 })}>↺ 45°</button>
+                <button onClick={() => onUpdate(selectedPlacement.itemId, { rotation: selectedPlacement.rotation + Math.PI / 4 })}>45° ↻</button>
+              </div>
+
+              <button className="room-remove" onClick={() => onRemove(selectedPlacement.itemId)}>部屋から片付ける</button>
+            </section>
+          )}
+        </div>
+      )}
+
+      {tab === 'surface' && (
+        <div className="room-editor__body">
+          <section className="surface-section">
+            <h2>壁紙</h2>
+            <div className="surface-options">
+              <button
+                className={game.roomStyle.wallpaper === 'default' ? 'surface-option surface-option--active' : 'surface-option'}
+                onClick={() => onRoomStyle('wallpaper', 'default')}
+              >
+                <span className="surface-swatch surface-swatch--wall-default" />
+                <b>標準</b>
+              </button>
+              <button
+                disabled={!wallpaperOwned}
+                className={game.roomStyle.wallpaper === 'wallpaper-warm' ? 'surface-option surface-option--active' : 'surface-option'}
+                onClick={() => onRoomStyle('wallpaper', 'wallpaper-warm')}
+              >
+                <span className="surface-swatch surface-swatch--wall-warm" />
+                <b>あたたかい壁紙</b>
+                {!wallpaperOwned && <small>未購入</small>}
+              </button>
+            </div>
+          </section>
+
+          <section className="surface-section">
+            <h2>床</h2>
+            <div className="surface-options">
+              <button
+                className={game.roomStyle.floor === 'default' ? 'surface-option surface-option--active' : 'surface-option'}
+                onClick={() => onRoomStyle('floor', 'default')}
+              >
+                <span className="surface-swatch surface-swatch--floor-default" />
+                <b>標準</b>
+              </button>
+              <button
+                disabled={!floorOwned}
+                className={game.roomStyle.floor === 'floor-wood' ? 'surface-option surface-option--active' : 'surface-option'}
+                onClick={() => onRoomStyle('floor', 'floor-wood')}
+              >
+                <span className="surface-swatch surface-swatch--floor-wood" />
+                <b>ウッド床</b>
+                {!floorOwned && <small>未購入</small>}
+              </button>
+            </div>
+          </section>
+        </div>
+      )}
+
+      <footer className="room-editor__footer">変更内容は自動保存されます。完成を押すと、てらくまが新しい部屋を喜びます。</footer>
+    </aside>
   )
 }
 
@@ -207,6 +386,8 @@ export default function App() {
   const [toast, setToast] = useState(null)
   const [shopOpen, setShopOpen] = useState(false)
   const [shopCategory, setShopCategory] = useState('furniture')
+  const [roomOpen, setRoomOpen] = useState(false)
+  const [selectedFurnitureId, setSelectedFurnitureId] = useState(null)
 
   useEffect(() => {
     const timer = window.setInterval(() => {
@@ -226,11 +407,15 @@ export default function App() {
   }, [toast])
 
   useEffect(() => {
-    if (game.status !== 'active') setShopOpen(false)
+    if (game.status !== 'active') {
+      setShopOpen(false)
+      setRoomOpen(false)
+      setSelectedFurnitureId(null)
+    }
   }, [game.status])
 
   const recover = (kind) => {
-    if (game.status !== 'active') return
+    if (game.status !== 'active' || roomOpen) return
 
     const currentValue = kind === 'hunger' ? game.hunger : game.play
     const recovered = Math.min(CONFIG.recoverAmount, Math.max(0, 100 - currentValue))
@@ -282,10 +467,97 @@ export default function App() {
     setToast(`${item.name}を購入しました！`)
   }
 
+  const openRoom = () => {
+    setShopOpen(false)
+    setSelectedFurnitureId(null)
+    setRoomOpen(true)
+  }
+
+  const placeFurniture = (itemId) => {
+    const spots = [
+      [-2.7, -1.9],
+      [0, -2.2],
+      [2.7, -1.9],
+      [-2.8, 1.25],
+      [2.8, 1.25],
+      [0, 1.9],
+      [-1.4, 0.4],
+      [1.4, 0.4],
+    ]
+
+    setGame((current) => {
+      if (!current.ownedItems.includes(itemId)) return current
+      if (current.placedFurniture.some((item) => item.itemId === itemId)) return current
+      const spot = spots[current.placedFurniture.length % spots.length]
+      return {
+        ...current,
+        placedFurniture: [
+          ...current.placedFurniture,
+          { itemId, x: spot[0], z: spot[1], rotation: 0 },
+        ],
+        lastUpdated: Date.now(),
+      }
+    })
+    setSelectedFurnitureId(itemId)
+  }
+
+  const updateFurniture = (itemId, patch) => {
+    setGame((current) => ({
+      ...current,
+      placedFurniture: current.placedFurniture.map((item) => {
+        if (item.itemId !== itemId) return item
+        return {
+          ...item,
+          ...patch,
+          x: patch.x == null ? item.x : Math.max(-3.8, Math.min(3.8, patch.x)),
+          z: patch.z == null ? item.z : Math.max(-2.8, Math.min(2.8, patch.z)),
+        }
+      }),
+      lastUpdated: Date.now(),
+    }))
+  }
+
+  const removeFurniture = (itemId) => {
+    setGame((current) => ({
+      ...current,
+      placedFurniture: current.placedFurniture.filter((item) => item.itemId !== itemId),
+      lastUpdated: Date.now(),
+    }))
+    setSelectedFurnitureId(null)
+  }
+
+  const updateRoomStyle = (kind, value) => {
+    const requiredItem = value === 'wallpaper-warm'
+      ? 'wallpaper-warm'
+      : value === 'floor-wood'
+        ? 'floor-wood'
+        : null
+
+    setGame((current) => {
+      if (requiredItem && !current.ownedItems.includes(requiredItem)) return current
+      return {
+        ...current,
+        roomStyle: { ...current.roomStyle, [kind]: value },
+        lastUpdated: Date.now(),
+      }
+    })
+  }
+
+  const finishRoomLayout = () => {
+    setRoomOpen(false)
+    setSelectedFurnitureId(null)
+    setReactionAction('happy')
+    setReactionTick((value) => value + 1)
+    setToast('新しい部屋になりました！')
+  }
+
   const resetGame = () => {
     const fresh = createFreshGame()
     localStorage.setItem(STORAGE_KEY, JSON.stringify(fresh))
     setGame(fresh)
+    setShopOpen(false)
+    setRoomOpen(false)
+    setSelectedFurnitureId(null)
     setReactionAction('happy')
     setReactionTick((value) => value + 1)
     setToast('新しいてらくま生活が始まりました')
@@ -314,20 +586,27 @@ export default function App() {
           status={game.status}
           reactionTick={reactionTick}
           reactionAction={reactionAction}
+          placedFurniture={game.placedFurniture}
+          roomStyle={game.roomStyle}
+          layoutMode={roomOpen}
+          selectedFurnitureId={selectedFurnitureId}
+          onSelectFurniture={setSelectedFurnitureId}
         />
 
-        <header className="topbar">
-          <div className="brand">
-            <span className="brand__small">TERAKUMA</span>
-            <strong>LIFE</strong>
-          </div>
-          <div className="wallet" title="SHOPで使うゲーム内通貨">
-            <span>🍙</span>
-            <strong>{game.onigiri}</strong>
-          </div>
-        </header>
+        {!roomOpen && (
+          <header className="topbar">
+            <div className="brand">
+              <span className="brand__small">TERAKUMA</span>
+              <strong>LIFE</strong>
+            </div>
+            <div className="wallet" title="SHOPで使うゲーム内通貨">
+              <span>🍙</span>
+              <strong>{game.onigiri}</strong>
+            </div>
+          </header>
+        )}
 
-        {game.status === 'active' && (
+        {game.status === 'active' && !roomOpen && (
           <>
             <aside className="status-panel">
               <Meter
@@ -357,10 +636,9 @@ export default function App() {
                 <span>🛍️</span>
                 <b>SHOP</b>
               </button>
-              <button className="action-button action-button--future" disabled>
+              <button className="action-button" onClick={openRoom}>
                 <span>🛋️</span>
                 <b>ルーム</b>
-                <small>準備中</small>
               </button>
               <button className="action-button action-button--future" disabled>
                 <span>👕</span>
@@ -371,13 +649,26 @@ export default function App() {
           </>
         )}
 
-        {shopOpen && game.status === 'active' && (
+        {shopOpen && game.status === 'active' && !roomOpen && (
           <ShopModal
             game={game}
             category={shopCategory}
             setCategory={setShopCategory}
             onClose={() => setShopOpen(false)}
             onBuy={buyItem}
+          />
+        )}
+
+        {roomOpen && game.status === 'active' && (
+          <RoomEditor
+            game={game}
+            selectedFurnitureId={selectedFurnitureId}
+            setSelectedFurnitureId={setSelectedFurnitureId}
+            onPlace={placeFurniture}
+            onUpdate={updateFurniture}
+            onRemove={removeFurniture}
+            onRoomStyle={updateRoomStyle}
+            onFinish={finishRoomLayout}
           />
         )}
 
@@ -395,7 +686,7 @@ export default function App() {
 
         {toast && <div className="toast">{toast}</div>}
 
-        <div className="prototype-tag">Ver.0.2.1 PROTOTYPE</div>
+        <div className="prototype-tag">Ver.0.3 PROTOTYPE</div>
       </section>
     </main>
   )
