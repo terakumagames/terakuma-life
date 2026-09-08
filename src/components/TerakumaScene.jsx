@@ -3,6 +3,46 @@ import { Canvas, useFrame } from '@react-three/fiber'
 import { ContactShadows, OrbitControls } from '@react-three/drei'
 import * as THREE from 'three'
 
+function Sunglasses() {
+  return (
+    <group position={[0, 1.93, 0.545]}>
+      {/* Left lens */}
+      <mesh position={[-0.235, -0.01, 0]} rotation={[0, 0.04, 0.02]}>
+        <boxGeometry args={[0.43, 0.235, 0.075]} />
+        <meshStandardMaterial color="#111513" roughness={0.28} metalness={0.22} />
+      </mesh>
+
+      {/* Right lens */}
+      <mesh position={[0.235, -0.01, 0]} rotation={[0, -0.04, -0.02]}>
+        <boxGeometry args={[0.43, 0.235, 0.075]} />
+        <meshStandardMaterial color="#111513" roughness={0.28} metalness={0.22} />
+      </mesh>
+
+      {/* Bridge */}
+      <mesh position={[0, 0.015, 0.01]}>
+        <boxGeometry args={[0.13, 0.052, 0.058]} />
+        <meshStandardMaterial color="#101412" roughness={0.3} metalness={0.18} />
+      </mesh>
+
+      {/* Greenish upper frame, based on the original Terakuma icon */}
+      <mesh position={[0, 0.135, 0.012]}>
+        <boxGeometry args={[0.94, 0.052, 0.062]} />
+        <meshStandardMaterial color="#557a68" roughness={0.46} metalness={0.08} />
+      </mesh>
+
+      {/* Slightly wider outer frame edges */}
+      <mesh position={[-0.49, 0.015, -0.01]} rotation={[0, 0, -0.06]}>
+        <boxGeometry args={[0.07, 0.24, 0.055]} />
+        <meshStandardMaterial color="#161a18" />
+      </mesh>
+      <mesh position={[0.49, 0.015, -0.01]} rotation={[0, 0, 0.06]}>
+        <boxGeometry args={[0.07, 0.24, 0.055]} />
+        <meshStandardMaterial color="#161a18" />
+      </mesh>
+    </group>
+  )
+}
+
 function Bear({ reactionTick }) {
   const group = useRef()
   const leftLeg = useRef()
@@ -64,44 +104,55 @@ function Bear({ reactionTick }) {
 
   return (
     <group ref={group} position={[0, 0.04, 0]}>
+      {/* Body */}
       <mesh castShadow position={[0, 1.02, 0]} scale={[0.78, 0.98, 0.62]}>
-        <sphereGeometry args={[0.72, 28, 20]} />
+        <sphereGeometry args={[0.72, 32, 24]} />
         <meshStandardMaterial color="#f8f7f2" roughness={0.9} />
       </mesh>
-      <mesh castShadow position={[0, 1.78, 0.06]}>
-        <sphereGeometry args={[0.58, 28, 20]} />
+
+      {/* Head */}
+      <mesh castShadow position={[0, 1.79, 0.06]} scale={[1.02, 0.98, 0.96]}>
+        <sphereGeometry args={[0.59, 32, 24]} />
         <meshStandardMaterial color="#fbfaf6" roughness={0.9} />
       </mesh>
-      <mesh castShadow position={[-0.4, 2.15, 0.02]}>
-        <sphereGeometry args={[0.2, 18, 14]} />
-        <meshStandardMaterial color="#f6f4ed" />
+
+      {/* Ears */}
+      <mesh castShadow position={[-0.41, 2.15, 0.015]}>
+        <sphereGeometry args={[0.205, 20, 16]} />
+        <meshStandardMaterial color="#f6f4ed" roughness={0.9} />
       </mesh>
-      <mesh castShadow position={[0.4, 2.15, 0.02]}>
-        <sphereGeometry args={[0.2, 18, 14]} />
-        <meshStandardMaterial color="#f6f4ed" />
-      </mesh>
-      <mesh castShadow position={[0, 1.62, 0.5]} scale={[0.58, 0.38, 0.35]}>
-        <sphereGeometry args={[0.46, 20, 14]} />
-        <meshStandardMaterial color="#eeeae0" />
-      </mesh>
-      <mesh castShadow position={[0, 1.7, 0.68]} scale={[1.2, 0.72, 0.55]}>
-        <sphereGeometry args={[0.12, 16, 10]} />
-        <meshStandardMaterial color="#171717" />
+      <mesh castShadow position={[0.41, 2.15, 0.015]}>
+        <sphereGeometry args={[0.205, 20, 16]} />
+        <meshStandardMaterial color="#f6f4ed" roughness={0.9} />
       </mesh>
 
-      <mesh position={[-0.23, 1.9, 0.52]}>
-        <boxGeometry args={[0.38, 0.22, 0.08]} />
-        <meshStandardMaterial color="#111111" metalness={0.15} />
-      </mesh>
-      <mesh position={[0.23, 1.9, 0.52]}>
-        <boxGeometry args={[0.38, 0.22, 0.08]} />
-        <meshStandardMaterial color="#111111" metalness={0.15} />
-      </mesh>
-      <mesh position={[0, 1.9, 0.53]}>
-        <boxGeometry args={[0.12, 0.045, 0.045]} />
-        <meshStandardMaterial color="#0d0d0d" />
+      {/* Gray muzzle area */}
+      <mesh castShadow position={[0, 1.62, 0.515]} scale={[0.64, 0.43, 0.38]}>
+        <sphereGeometry args={[0.48, 28, 20]} />
+        <meshStandardMaterial color="#b9bbb7" roughness={0.96} />
       </mesh>
 
+      {/* Soft lower muzzle/chin to make the gray area read naturally in 3D */}
+      <mesh castShadow position={[0, 1.49, 0.49]} scale={[0.48, 0.26, 0.29]}>
+        <sphereGeometry args={[0.42, 24, 18]} />
+        <meshStandardMaterial color="#c6c7c3" roughness={0.98} />
+      </mesh>
+
+      {/* Nose */}
+      <mesh castShadow position={[0, 1.68, 0.705]} scale={[1.28, 0.78, 0.64]}>
+        <sphereGeometry args={[0.125, 20, 14]} />
+        <meshStandardMaterial color="#151716" roughness={0.58} />
+      </mesh>
+
+      {/* Mouth */}
+      <mesh position={[0, 1.515, 0.69]} scale={[0.95, 0.25, 0.35]}>
+        <sphereGeometry args={[0.105, 18, 12]} />
+        <meshStandardMaterial color="#353735" roughness={0.85} />
+      </mesh>
+
+      <Sunglasses />
+
+      {/* Arms */}
       <mesh castShadow position={[-0.63, 1.0, 0]} scale={[0.27, 0.62, 0.28]}>
         <sphereGeometry args={[0.52, 18, 14]} />
         <meshStandardMaterial color="#f7f6f0" />
@@ -111,6 +162,7 @@ function Bear({ reactionTick }) {
         <meshStandardMaterial color="#f7f6f0" />
       </mesh>
 
+      {/* Legs */}
       <group ref={leftLeg} position={[-0.3, 0.45, 0]}>
         <mesh castShadow scale={[0.35, 0.65, 0.42]}>
           <sphereGeometry args={[0.52, 18, 14]} />
@@ -165,6 +217,7 @@ function Marker({ status }) {
       </group>
     )
   }
+
   if (status === 'away') {
     return (
       <mesh position={[0, 0.035, 0]} rotation={[-Math.PI / 2, 0, -0.2]}>
@@ -173,6 +226,7 @@ function Marker({ status }) {
       </mesh>
     )
   }
+
   return null
 }
 
