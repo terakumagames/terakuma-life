@@ -203,6 +203,7 @@ function ShopModal({ game, category, setCategory, onClose, onBuy }) {
 export default function App() {
   const [game, setGame] = useState(loadGame)
   const [reactionTick, setReactionTick] = useState(0)
+  const [reactionAction, setReactionAction] = useState('happy')
   const [toast, setToast] = useState(null)
   const [shopOpen, setShopOpen] = useState(false)
   const [shopCategory, setShopCategory] = useState('furniture')
@@ -252,6 +253,7 @@ export default function App() {
       lastUpdated: Date.now(),
     }))
 
+    setReactionAction(kind)
     setReactionTick((value) => value + 1)
     setToast(
       earned > 0
@@ -284,6 +286,7 @@ export default function App() {
     const fresh = createFreshGame()
     localStorage.setItem(STORAGE_KEY, JSON.stringify(fresh))
     setGame(fresh)
+    setReactionAction('happy')
     setReactionTick((value) => value + 1)
     setToast('新しいてらくま生活が始まりました')
   }
@@ -307,7 +310,11 @@ export default function App() {
   return (
     <main className="app-shell">
       <section className="game-stage">
-        <TerakumaScene status={game.status} reactionTick={reactionTick} />
+        <TerakumaScene
+          status={game.status}
+          reactionTick={reactionTick}
+          reactionAction={reactionAction}
+        />
 
         <header className="topbar">
           <div className="brand">
@@ -388,7 +395,7 @@ export default function App() {
 
         {toast && <div className="toast">{toast}</div>}
 
-        <div className="prototype-tag">Ver.0.2 PROTOTYPE</div>
+        <div className="prototype-tag">Ver.0.2.1 PROTOTYPE</div>
       </section>
     </main>
   )
