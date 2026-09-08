@@ -2,10 +2,20 @@ import { useEffect, useRef } from 'react'
 import { Canvas, useFrame } from '@react-three/fiber'
 import { ContactShadows, OrbitControls } from '@react-three/drei'
 import * as THREE from 'three'
+import { FurnitureObject, FURNITURE_RADII } from './FurnitureObjects.jsx'
 
 const clampRoomX = (value) => THREE.MathUtils.clamp(value, -3.5, 3.5)
 const clampRoomZ = (value) => THREE.MathUtils.clamp(value, -2.6, 2.6)
 const smooth = (value) => value * value * (3 - 2 * value)
+
+function isBlocked(position, placements) {
+  return placements.some((item) => {
+    const radius = FURNITURE_RADII[item.itemId] ?? 0.75
+    const dx = position.x - item.x
+    const dz = position.z - item.z
+    return Math.hypot(dx, dz) < radius + 0.48
+  })
+}
 
 function Sunglasses() {
   return (
@@ -87,7 +97,7 @@ function PettingHand({ handRef }) {
   )
 }
 
-function Bear({ reactionTick, reactionAction }) {
+function Bear({ reactionTick, reactionAction, furniture = [], layoutMode = false }) {
   const group = useRef()
   const leftArm = useRef()
   const rightArm = useRef()
@@ -111,11 +121,18 @@ function Bear({ reactionTick, reactionAction }) {
   })
 
   const chooseTarget = () => {
-    target.current.set(
-      THREE.MathUtils.randFloat(-3.6, 3.6),
-      0,
-      THREE.MathUtils.randFloat(-2.7, 2.7),
-    )
+    for (let i = 0; i < 14; i += 1) {
+      const candidate = new THREE.Vector3(
+        THREE.MathUtils.randFloat(-3.6, 3.6),
+        0,
+        THREE.MathUtils.randFloat(-2.7, 2.7),
+      )
+      if (!isBlocked(candidate, furniture)) {
+        target.current.copy(candidate)
+        return
+      }
+    }
+    target.current.set(0, 0, 0)
   }
 
   useEffect(() => {
@@ -159,6 +176,10 @@ function Bear({ reactionTick, reactionAction }) {
 
     group.current.rotation.y = 0
   }, [reactionTick, reactionAction])
+
+  useEffect(() => {
+    chooseTarget()
+  }, [furniture.length])
 
   useFrame((state, delta) => {
     if (!group.current) return
@@ -345,6 +366,7 @@ function Bear({ reactionTick, reactionAction }) {
       rightArm.current.rotation.z = THREE.MathUtils.damp(rightArm.current.rotation.z, 0, 9, delta)
     }
 
+    if (layoutMode) return
     if (state.clock.elapsedTime < waitUntil.current) return
 
     const direction = target.current.clone().sub(p)
@@ -357,7 +379,14 @@ function Bear({ reactionTick, reactionAction }) {
     }
 
     direction.normalize()
-    p.addScaledVector(direction, Math.min(0.62 * delta, distance))
+    const next = p.clone().addScaledVector(direction, Math.min(0.62 * delta, distance))
+    if (isBlocked(next, furniture)) {
+      chooseTarget()
+      waitUntil.current = state.clock.elapsedTime + 0.25
+      return
+    }
+
+    p.copy(next)
     bear.rotation.y = THREE.MathUtils.damp(
       bear.rotation.y,
       Math.atan2(direction.x, direction.z),
@@ -446,27 +475,47 @@ function Bear({ reactionTick, reactionAction }) {
   )
 }
 
-function Room() {
+function Room({ roomStyle }) {
+  const wallColor = roomStyle?.wallpaper === 'wallpaper-warm' ? '#e3d0b9' : '#ede9df'
+  const sideWallColor = roomStyle?.wallpaper === 'wallpaper-warm' ? '#dac5ae' : '#e8e3d8'
+  const floorColor = roomStyle?.floor === 'floor-wood' ? '#b1845f' : '#d8cab4'
+
   return (
     <group>
       <mesh receiveShadow position={[0, -0.08, 0]}>
         <boxGeometry args={[10, 0.16, 8]} />
-        <meshStandardMaterial color="#d8cab4" roughness={0.96} />
+        <meshStandardMaterial color={floorColor} roughness={0.96} />
       </mesh>
       <mesh receiveShadow position={[0, 1.8, -4]}>
         <boxGeometry args={[10, 3.6, 0.16]} />
-        <meshStandardMaterial color="#ede9df" />
+        <meshStandardMaterial color={wallColor} roughness={0.92} />
       </mesh>
       <mesh receiveShadow position={[-5, 1.8, 0]}>
         <boxGeometry args={[0.16, 3.6, 8]} />
-        <meshStandardMaterial color="#e8e3d8" />
+        <meshStandardMaterial color={sideWallColor} roughness={0.92} />
       </mesh>
       <mesh receiveShadow position={[5, 1.8, 0]}>
         <boxGeometry args={[0.16, 3.6, 8]} />
-        <meshStandardMaterial color="#e8e3d8" />
+        <meshStandardMaterial color={sideWallColor} roughness={0.92} />
       </mesh>
     </group>
   )
+}
+
+function FurnitureLayer({ placements, layoutMode, selectedFurnitureId, onSelectFurniture }) {
+  return placements.map((item) => (
+    <group
+      key={item.itemId}
+      position={[item.x, 0, item.z]}
+      rotation={[0, item.rotation ?? 0, 0]}
+    >
+      <FurnitureObject
+        itemId={item.itemId}
+        selected={layoutMode && selectedFurnitureId === item.itemId}
+        onSelect={layoutMode ? () => onSelectFurniture?.(item.itemId) : undefined}
+      />
+    </group>
+  ))
 }
 
 function Marker({ status }) {
@@ -497,16 +546,43 @@ function Marker({ status }) {
   return null
 }
 
-export default function TerakumaScene({ status, reactionTick, reactionAction = 'happy' }) {
+export default function TerakumaScene({
+  status,
+  reactionTick,
+  reactionAction = 'happy',
+  placedFurniture = [],
+  roomStyle = { wallpaper: 'default', floor: 'default' },
+  layoutMode = false,
+  selectedFurnitureId = null,
+  onSelectFurniture,
+}) {
   return (
     <div className="scene-wrap">
-      <Canvas shadows dpr={[1, 2]} camera={{ position: [6.4, 4.8, 7.4], fov: 43 }}>
+      <Canvas
+        shadows
+        dpr={[1, 2]}
+        camera={{ position: [6.4, 4.8, 7.4], fov: 43 }}
+        onPointerMissed={() => {
+          if (layoutMode) onSelectFurniture?.(null)
+        }}
+      >
         <color attach="background" args={['#cfd7d8']} />
         <ambientLight intensity={1.25} />
         <directionalLight castShadow intensity={2.1} position={[4, 7, 5]} />
-        <Room />
+        <Room roomStyle={roomStyle} />
+        <FurnitureLayer
+          placements={placedFurniture}
+          layoutMode={layoutMode}
+          selectedFurnitureId={selectedFurnitureId}
+          onSelectFurniture={onSelectFurniture}
+        />
         {status === 'active' ? (
-          <Bear reactionTick={reactionTick} reactionAction={reactionAction} />
+          <Bear
+            reactionTick={reactionTick}
+            reactionAction={reactionAction}
+            furniture={placedFurniture}
+            layoutMode={layoutMode}
+          />
         ) : (
           <Marker status={status} />
         )}
